@@ -12,4 +12,14 @@
         <servlet-name>SkierServlet</servlet-name>
         <url-pattern>/skiers/*</url-pattern>
     </servlet-mapping>
+
+    <servlet>
+        <servlet-name>HelloWorldServlet</servlet-name>
+        <servlet-class>HelloWorldServlet</servlet-class>
+    </servlet>
+
+    <servlet-mapping>
+        <servlet-name>HelloWorldServlet</servlet-name>
+        <url-pattern>/skiers_lab3/*</url-pattern>
+    </servlet-mapping>
 </web-app>
