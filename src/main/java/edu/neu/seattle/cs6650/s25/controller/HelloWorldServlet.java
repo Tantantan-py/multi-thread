@@ -9,6 +9,7 @@ import javax.servlet.http.*;
 @WebServlet("/hello/*")
 public class HelloWorldServlet extends HttpServlet {
     private String msg;
+    private int sleepTime = 1000;
 
     public void init() throws ServletException {
         // Initialization
@@ -23,7 +24,7 @@ public class HelloWorldServlet extends HttpServlet {
 
         // sleep for 1000ms. You can vary this value for different tests
         try {
-            Thread.sleep(1000);
+            Thread.sleep(sleepTime);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
@@ -46,7 +47,7 @@ public class HelloWorldServlet extends HttpServlet {
             res.setStatus(HttpServletResponse.SC_OK);
             // Send the response
             PrintWriter out = res.getWriter();
-            out.println("<h1>" + msg + "</h1>");
+            out.println("<h1>" + msg + "</h1>" + "with sleep time of" + sleepTime + "ms");
         }
     }
 
