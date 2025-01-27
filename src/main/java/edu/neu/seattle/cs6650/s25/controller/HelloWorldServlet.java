@@ -47,7 +47,7 @@ public class HelloWorldServlet extends HttpServlet {
             res.setStatus(HttpServletResponse.SC_OK);
             // Send the response
             PrintWriter out = res.getWriter();
-            out.println("<h1>" + msg + "</h1>" + "with sleep time of" + sleepTime + "ms");
+            out.println("<h1>" + msg + "</h1>" + "with sleep time of " + sleepTime + " ms");
         }
     }
 
