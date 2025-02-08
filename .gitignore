@@ -36,3 +36,5 @@ build/
 
 ### Generated files from Maven ###
 target/
+
+out/
