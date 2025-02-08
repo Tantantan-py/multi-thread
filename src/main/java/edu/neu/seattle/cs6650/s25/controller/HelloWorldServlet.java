@@ -6,7 +6,7 @@ import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.*;
 
 
-@WebServlet("/hello/*")
+@WebServlet(name = "HelloWorldServlet", urlPatterns = {"/hello/*"})
 public class HelloWorldServlet extends HttpServlet {
     private String msg;
     private int sleepTime = 1000;
