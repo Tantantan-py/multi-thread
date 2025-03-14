@@ -1,11 +1,31 @@
 package edu.neu.seattle.cs6650.s25.controller;
 
+import com.rabbitmq.client.Channel;
+import com.rabbitmq.client.Connection;
+import com.rabbitmq.client.ConnectionFactory;
+
 import javax.servlet.*;
 import javax.servlet.http.*;
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.TimeoutException;
+import org.json.JSONObject;
+
 
 public class SkierServlet extends HttpServlet {
+    private static final String QUEUE_NAME = "skier_queue";
+    private ConnectionFactory factory;
+
+    @Override
+    public void init() throws ServletException {
+        factory = new ConnectionFactory();
+        // Update with your own ec2 public ip
+        factory.setHost("35.91.131.96");
+        factory.setUsername("assignment2");
+        factory.setPassword("assignment2");
+
+    }
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {
         res.setContentType("text/plain");
@@ -95,49 +115,71 @@ public class SkierServlet extends HttpServlet {
                 sb.append(line);
             }
         }
-        String requestBody = sb.toString();
+
+        JSONObject jsonObject;
+        try {
+            jsonObject = new JSONObject(sb.toString());
+        } catch (Exception e) {
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            response.getWriter().write("{\"error\": \"Invalid JSON format\"}");
+            return;
+        }
+
+        // Validate JSON fields
+        if (!jsonObject.has("time") || !jsonObject.has("liftID")) {
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            response.getWriter().write("{\"error\": \"Missing required fields (time, liftID)\"}");
+            return;
+        }
 
         int time = -1;
         int liftID = -1;
 
         String timeKey = "\"time\":";
-        int timeIndex = requestBody.indexOf(timeKey);
-        if (timeIndex != -1) {
-            int start = timeIndex + timeKey.length();
-            int end = requestBody.indexOf(',', start);
-            if (end == -1) {
-                end = requestBody.indexOf('}', start);
+        try {
+            time = jsonObject.getInt("time");
+            liftID = jsonObject.getInt("liftID");
+
+            if (time < 1 || time > 360) {
+                throw new IllegalArgumentException("Invalid time range");
             }
-            if (end > start) {
-                String timeValue = requestBody.substring(start, end).trim();
-                time = Integer.parseInt(timeValue);
+            if (liftID < 1 || liftID > 40) {
+                throw new IllegalArgumentException("Invalid liftID range");
             }
-        } else {
+        } catch (Exception e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write("doPost - missing time parameter for SkierServlet");
+            response.getWriter().write("{\"error\": \"Invalid numeric values\"}");
             return;
         }
 
-        String liftIDKey = "\"liftID\":";
-        int liftIDIndex = requestBody.indexOf(liftIDKey);
-        if (liftIDIndex != -1) {
-            int start = liftIDIndex + liftIDKey.length();
-            int end = requestBody.indexOf(',', start);
-            if (end == -1) {
-                end = requestBody.indexOf('}', start);
-            }
-            if (end > start) {
-                String liftIDValue = requestBody.substring(start, end).trim();
-                liftID = Integer.parseInt(liftIDValue);
-            }
-        } else {
-            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write("doPost - missing liftID parameter for SkierServlet");
-            return;
-        }
+        // Format data for the queue
+        JSONObject message = new JSONObject();
+        message.put("resortID", Integer.parseInt(urlParts[1]));
+        message.put("seasonID", Integer.parseInt(urlParts[3]));
+        message.put("dayID", Integer.parseInt(urlParts[5]));
+        message.put("skierID", Integer.parseInt(urlParts[7]));
+        message.put("time", time);
+        message.put("liftID", liftID);
 
-        response.setStatus(HttpServletResponse.SC_CREATED);
-        // TODO (maybe also some value if input is valid?)
-        response.getWriter().write("doPost works for SkierServlet!");
+        // Send message to RabbitMQ
+        if (sendMessageToQueue(message.toString())) {
+            response.setStatus(HttpServletResponse.SC_CREATED);
+            response.getWriter().write("{\"message\": \"Lift ride recorded successfully\"}");
+        } else {
+            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            response.getWriter().write("{\"error\": \"Failed to process request\"}");
+        }
+    }
+
+    private boolean sendMessageToQueue(String message) {
+        try (Connection connection = factory.newConnection();
+             Channel channel = connection.createChannel()) {
+            channel.queueDeclare(QUEUE_NAME, true, false, false, null);
+            channel.basicPublish("", QUEUE_NAME, null, message.getBytes(StandardCharsets.UTF_8));
+            return true;
+        } catch (IOException | TimeoutException e) {
+            e.printStackTrace();
+            return false;
+        }
     }
 }
