@@ -46,6 +46,8 @@ public class SkierServlet extends HttpServlet {
         }
     }
 
+    // TODO DoGet temporarily removed since Assignment2 2 only requires doPost, just refactor my isURLValid method.
+
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         response.setContentType("application/json");
