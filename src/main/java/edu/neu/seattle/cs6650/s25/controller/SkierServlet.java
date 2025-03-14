@@ -132,10 +132,8 @@ public class SkierServlet extends HttpServlet {
             return;
         }
 
-        int time = -1;
-        int liftID = -1;
-
-        String timeKey = "\"time\":";
+        int time;
+        int liftID;
         try {
             time = jsonObject.getInt("time");
             liftID = jsonObject.getInt("liftID");
