@@ -31,8 +31,8 @@ public class SkierServlet extends HttpServlet {
             // Initialize RabbitMQ Connection
             // Should store on env vars, but hardcoded for simplicity
             factory = new ConnectionFactory();
-            // replace with your EC2 public IP
-            factory.setHost("54.244.194.47");
+            // replace with your RMQ  EC2 public IP
+            factory.setHost("54.245.209.3");
             factory.setUsername("assignment2");
             factory.setPassword("assignment2");
 
