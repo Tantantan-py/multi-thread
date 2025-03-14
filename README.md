@@ -38,3 +38,13 @@ private static final String SERVER_URL = "http://[your-ec2-address]:8080/multi-t
 ```
 
 Once updated, run the client to start sending requests to the server.
+
+
+
+Assignment2
+First Copy your RabbitMQ deployed public IP on EC2
+Paste to replace the Consumer.java's config
+```java
+        factory.setHost("35.94.179.104"); // Update with RabbitMQ EC2 Public IP
+```
+And replace with your own user/pwd
