@@ -21,7 +21,7 @@ public class SkierServlet extends HttpServlet {
     public void init() throws ServletException {
         factory = new ConnectionFactory();
         // Update with your own ec2 public ip
-        factory.setHost("35.91.131.96");
+        factory.setHost("54.244.194.47");
         factory.setUsername("assignment2");
         factory.setPassword("assignment2");
 
