@@ -3,6 +3,9 @@ package edu.neu.seattle.cs6650.s25.controller;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
+import org.apache.commons.pool2.ObjectPool;
+import org.apache.commons.pool2.impl.GenericObjectPool;
+import org.json.JSONObject;
 
 import javax.servlet.*;
 import javax.servlet.http.*;
@@ -10,82 +13,37 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeoutException;
-import org.json.JSONObject;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 
 public class SkierServlet extends HttpServlet {
+    private static final Logger LOGGER = Logger.getLogger(SkierServlet.class.getName());
     private static final String QUEUE_NAME = "skier_queue";
+
     private ConnectionFactory factory;
+    private Connection rabbitConnection;
+    private ObjectPool<Channel> channelPool;
 
     @Override
     public void init() throws ServletException {
-        factory = new ConnectionFactory();
-        // Update with your own ec2 public ip
-        factory.setHost("54.244.194.47");
-        factory.setUsername("assignment2");
-        factory.setPassword("assignment2");
-
-    }
-    @Override
-    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {
-        res.setContentType("text/plain");
-        String urlPath = req.getPathInfo();
-
-        // check we have a URL
-        if (urlPath == null || urlPath.isEmpty()) {
-            res.setStatus(HttpServletResponse.SC_NOT_FOUND);
-            res.getWriter().write("doGet - missing URL parameters for SkierServlet");
-            return;
-        }
-
-        String[] urlParts = urlPath.split("/");
-
-        if (!isUrlValid(urlParts)) {
-            res.setStatus(HttpServletResponse.SC_NOT_FOUND);
-            res.getWriter().write("doGet - invalid URL parameters for SkierServlet");
-        } else {
-            res.setStatus(HttpServletResponse.SC_OK);
-            // TODO (maybe also some value if input is valid?)
-            res.getWriter().write("doGet works for SkierServlet!");
-        }
-    }
-
-    private boolean isUrlValid(String[] urlParts) {
-        // urlPath  = "/1/seasons/2019/day/1/skier/123"
-        // urlParts = [, 1, seasons, 2019, day, 1, skier, 123]
-        // ["", "{resortID}", "seasons", "{seasonID}", "day", "{dayID}", "skier", "{skierID}"]
-
-        // check if the urlParts has 8 elements
-        if (urlParts.length != 8) {
-            return false;
-        }
-        // check if the urlParts have the correct format
-        if (!urlParts[2].equals("seasons") || !urlParts[4].equals("day") || !urlParts[6].equals("skier")) {
-            return false;
-        }
-        // check if the resortID is a valid integer
         try {
-            Integer.parseInt(urlParts[1]);
-        } catch (NumberFormatException e) {
-            return false;
+            // Initialize RabbitMQ Connection
+            // Should store on env vars, but hardcoded for simplicity
+            factory = new ConnectionFactory();
+            // replace with your EC2 public IP
+            factory.setHost("54.244.194.47");
+            factory.setUsername("assignment2");
+            factory.setPassword("assignment2");
+
+            rabbitConnection = factory.newConnection();
+
+            // Initialize Channel Pool
+            channelPool = new GenericObjectPool<>(new ChannelFactory(rabbitConnection));
+
+        } catch (IOException | TimeoutException e) {
+            throw new ServletException("Failed to initialize RabbitMQ connection and channel pool", e);
         }
-        // check if the seasonID is a valid year
-        int seasonID = Integer.parseInt(urlParts[3]);
-        if (String.valueOf(seasonID).length() != 4) {
-            return false;
-        }
-        // check if the dayID is a valid year
-        int dayID = Integer.parseInt(urlParts[5]);
-        if (dayID < 1 || dayID > 366) {
-            return false;
-        }
-        // check if the skierID is a valid integer
-        try {
-            Integer.parseInt(urlParts[7]);
-        } catch (NumberFormatException e) {
-            return false;
-        }
-        return true;
     }
 
     @Override
@@ -95,62 +53,33 @@ public class SkierServlet extends HttpServlet {
 
         if (urlPath == null || urlPath.isEmpty()) {
             response.setStatus(HttpServletResponse.SC_NOT_FOUND);
-            response.getWriter().write("doPost - missing URL parameters for SkierServlet");
+            response.getWriter().write("{\"error\": \"Missing URL parameters\"}");
             return;
         }
 
         String[] urlParts = urlPath.split("/");
-
-        if (!isUrlValid(urlParts)) {
+        if (!validateUrl(urlParts)) {
             response.setStatus(HttpServletResponse.SC_NOT_FOUND);
-            response.getWriter().write("doPost - invalid URL parameters for SkierServlet");
+            response.getWriter().write("{\"error\": \"Invalid URL format\"}");
             return;
         }
 
-        // Handle the JSON payload
-        StringBuilder sb = new StringBuilder();
-        try (BufferedReader reader = request.getReader()) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                sb.append(line);
-            }
-        }
-
-        JSONObject jsonObject;
-        try {
-            jsonObject = new JSONObject(sb.toString());
-        } catch (Exception e) {
+        JSONObject requestBody = parseRequestBody(request);
+        if (requestBody == null) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
             response.getWriter().write("{\"error\": \"Invalid JSON format\"}");
             return;
         }
 
-        // Validate JSON fields
-        if (!jsonObject.has("time") || !jsonObject.has("liftID")) {
+        // Extract values
+        int time = requestBody.optInt("time", -1);
+        int liftID = requestBody.optInt("liftID", -1);
+        if (time < 1 || time > 360 || liftID < 1 || liftID > 40) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write("{\"error\": \"Missing required fields (time, liftID)\"}");
+            response.getWriter().write("{\"error\": \"Invalid time or liftID\"}");
             return;
         }
 
-        int time;
-        int liftID;
-        try {
-            time = jsonObject.getInt("time");
-            liftID = jsonObject.getInt("liftID");
-
-            if (time < 1 || time > 360) {
-                throw new IllegalArgumentException("Invalid time range");
-            }
-            if (liftID < 1 || liftID > 40) {
-                throw new IllegalArgumentException("Invalid liftID range");
-            }
-        } catch (Exception e) {
-            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write("{\"error\": \"Invalid numeric values\"}");
-            return;
-        }
-
-        // Format data for the queue
         JSONObject message = new JSONObject();
         message.put("resortID", Integer.parseInt(urlParts[1]));
         message.put("seasonID", Integer.parseInt(urlParts[3]));
@@ -159,7 +88,6 @@ public class SkierServlet extends HttpServlet {
         message.put("time", time);
         message.put("liftID", liftID);
 
-        // Send message to RabbitMQ
         if (sendMessageToQueue(message.toString())) {
             response.setStatus(HttpServletResponse.SC_CREATED);
             response.getWriter().write("{\"message\": \"Lift ride recorded successfully\"}");
@@ -170,14 +98,86 @@ public class SkierServlet extends HttpServlet {
     }
 
     private boolean sendMessageToQueue(String message) {
-        try (Connection connection = factory.newConnection();
-             Channel channel = connection.createChannel()) {
+        Channel channel = null;
+        try {
+            channel = channelPool.borrowObject();
             channel.queueDeclare(QUEUE_NAME, true, false, false, null);
             channel.basicPublish("", QUEUE_NAME, null, message.getBytes(StandardCharsets.UTF_8));
             return true;
-        } catch (IOException | TimeoutException e) {
-            e.printStackTrace();
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error sending message to RabbitMQ", e);
             return false;
+        } finally {
+            if (channel != null) {
+                try {
+                    channelPool.returnObject(channel);
+                } catch (Exception e) {
+                    LOGGER.log(Level.WARNING, "Failed to return channel to pool", e);
+                }
+            }
+        }
+    }
+
+    private boolean validateUrl(String[] urlParts) {
+        return urlParts.length == 8 &&
+                "seasons".equals(urlParts[2]) &&
+                "day".equals(urlParts[4]) &&
+                "skier".equals(urlParts[6]) &&
+                isValidInteger(urlParts[1]) &&
+                isValidYear(urlParts[3]) &&
+                isValidDay(urlParts[5]) &&
+                isValidInteger(urlParts[7]);
+    }
+
+    private boolean isValidInteger(String str) {
+        try {
+            Integer.parseInt(str);
+            return true;
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
+    private boolean isValidYear(String str) {
+        return str.matches("\\d{4}");
+    }
+
+    private boolean isValidDay(String str) {
+        try {
+            int day = Integer.parseInt(str);
+            return day >= 1 && day <= 366;
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
+    private JSONObject parseRequestBody(HttpServletRequest request) {
+        try (BufferedReader reader = request.getReader()) {
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                sb.append(line);
+            }
+            return new JSONObject(sb.toString());
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Error parsing request body", e);
+            return null;
+        }
+    }
+
+    @Override
+    public void destroy() {
+        try {
+            if (channelPool != null) {
+                channelPool.close();
+                LOGGER.log(Level.INFO, "Channel pool closed");
+            }
+            if (rabbitConnection != null) {
+                rabbitConnection.close();
+                LOGGER.log(Level.INFO, "RabbitMQ connection closed");
+            }
+        } catch (IOException e) {
+            LOGGER.log(Level.SEVERE, "Error closing resources", e);
         }
     }
 }

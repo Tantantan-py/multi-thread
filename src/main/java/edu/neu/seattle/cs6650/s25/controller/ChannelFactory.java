@@ -1,3 +1,5 @@
+package edu.neu.seattle.cs6650.s25.controller;
+
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
 import org.apache.commons.pool2.BasePooledObjectFactory;
