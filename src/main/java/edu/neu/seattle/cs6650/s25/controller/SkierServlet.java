@@ -30,15 +30,14 @@ public class SkierServlet extends HttpServlet {
     public void init() throws ServletException {
         try {
             factory = new ConnectionFactory();
-            factory.setHost("54.245.209.3");
+            factory.setHost("52.10.48.69");
             factory.setUsername("assignment2");
             factory.setPassword("assignment2");
 
             rabbitConnection = factory.newConnection();
 
-            // Use a larger pool of channels to reduce contention
             channelPool = new GenericObjectPool<>(new ChannelFactory(rabbitConnection), new GenericObjectPoolConfig<Channel>() {{
-                setMaxTotal(50); // Increase the number of channels available
+                setMaxTotal(50);
                 setBlockWhenExhausted(true);
                 setMaxWaitMillis(5000);
             }});
@@ -98,9 +97,12 @@ public class SkierServlet extends HttpServlet {
         message.put("time", time);
         message.put("liftID", liftID);
 
+        System.out.println("📩 Received request with skierID: " + urlParts[7]);
+
+
         if (sendMessageToQueue(message.toString())) {
             response.setStatus(HttpServletResponse.SC_CREATED);
-            response.getWriter().write("{\"message\": \"Lift ride recorded successfully\"}");
+            response.getWriter().write("{\"message\": \"Lift ride recorded successfully for skier " + urlParts[7] + "\"}");
         } else {
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
             response.getWriter().write("{\"error\": \"Failed to process request\"}");
