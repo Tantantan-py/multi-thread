@@ -5,6 +5,7 @@ import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
 import org.apache.commons.pool2.ObjectPool;
 import org.apache.commons.pool2.impl.GenericObjectPool;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.json.JSONObject;
 
 import javax.servlet.*;
@@ -34,7 +35,13 @@ public class SkierServlet extends HttpServlet {
             factory.setPassword("assignment2");
 
             rabbitConnection = factory.newConnection();
-            channelPool = new GenericObjectPool<>(new ChannelFactory(rabbitConnection));
+
+            // Use a larger pool of channels to reduce contention
+            channelPool = new GenericObjectPool<>(new ChannelFactory(rabbitConnection), new GenericObjectPoolConfig<Channel>() {{
+                setMaxTotal(50); // Increase the number of channels available
+                setBlockWhenExhausted(true);
+                setMaxWaitMillis(5000);
+            }});
 
             // Declare the queue only once at startup
             Channel channel = rabbitConnection.createChannel();
@@ -44,6 +51,7 @@ public class SkierServlet extends HttpServlet {
             throw new ServletException("Failed to initialize RabbitMQ connection and channel pool", e);
         }
     }
+
 
 
     // TODO DoGet temporarily removed since Assignment2 2 only requires doPost, just refactor my isURLValid method.
@@ -103,16 +111,12 @@ public class SkierServlet extends HttpServlet {
         Channel channel = null;
         try {
             channel = channelPool.borrowObject();
-            channel.queueDeclare(QUEUE_NAME, true, false, false, null);
-
-            // Enable publisher confirms
-            channel.confirmSelect();
-
-            // Publish the message
+            channel.confirmSelect(); // Enable message confirmation
             channel.basicPublish("", QUEUE_NAME, null, message.getBytes(StandardCharsets.UTF_8));
 
-            // Wait for confirmation from RabbitMQ
-            channel.waitForConfirmsOrDie(5000); // Wait up to 5 seconds for confirmation
+            if (!channel.waitForConfirms(5000)) { // Ensure the message is delivered
+                throw new IOException("Message was not confirmed");
+            }
 
             return true;
         } catch (Exception e) {
@@ -128,6 +132,7 @@ public class SkierServlet extends HttpServlet {
             }
         }
     }
+
 
 
     private boolean validateUrl(String[] urlParts) {
