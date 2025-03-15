@@ -28,23 +28,23 @@ public class SkierServlet extends HttpServlet {
     @Override
     public void init() throws ServletException {
         try {
-            // Initialize RabbitMQ Connection
-            // Should store on env vars, but hardcoded for simplicity
             factory = new ConnectionFactory();
-            // replace with your RMQ  EC2 public IP
             factory.setHost("54.245.209.3");
             factory.setUsername("assignment2");
             factory.setPassword("assignment2");
 
             rabbitConnection = factory.newConnection();
-
-            // Initialize Channel Pool
             channelPool = new GenericObjectPool<>(new ChannelFactory(rabbitConnection));
 
+            // Declare the queue only once at startup
+            Channel channel = rabbitConnection.createChannel();
+            channel.queueDeclare(QUEUE_NAME, true, false, false, null);
+            channel.close();
         } catch (IOException | TimeoutException e) {
             throw new ServletException("Failed to initialize RabbitMQ connection and channel pool", e);
         }
     }
+
 
     // TODO DoGet temporarily removed since Assignment2 2 only requires doPost, just refactor my isURLValid method.
 
