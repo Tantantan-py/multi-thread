@@ -97,11 +97,13 @@ public class SkierServlet extends HttpServlet {
         message.put("time", time);
         message.put("liftID", liftID);
 
-        System.out.println("📩 Received request with skierID: " + urlParts[7]);
+//        System.out.println("📩 Received request with skierID: " + urlParts[7]);
+        // Debugging in EC2: sudo tail -f /usr/share/apache-tomcat-9.0.93/logs/catalina.out
 
 
         if (sendMessageToQueue(message.toString())) {
             response.setStatus(HttpServletResponse.SC_CREATED);
+            System.out.println("📩 Lift ride recorded successfully for skier: " + urlParts[7]);
             response.getWriter().write("{\"message\": \"Lift ride recorded successfully for skier " + urlParts[7] + "\"}");
         } else {
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
@@ -115,8 +117,10 @@ public class SkierServlet extends HttpServlet {
             channel = channelPool.borrowObject();
             channel.confirmSelect(); // Enable message confirmation
             channel.basicPublish("", QUEUE_NAME, null, message.getBytes(StandardCharsets.UTF_8));
+//            System.out.println("📩 Sent message to RabbitMQ: " + message);
 
             if (!channel.waitForConfirms(5000)) { // Ensure the message is delivered
+//                System.out.println("❌ Message was not confirmed for " + message);
                 throw new IOException("Message was not confirmed");
             }
 
