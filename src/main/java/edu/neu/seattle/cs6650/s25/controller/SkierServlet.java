@@ -30,7 +30,7 @@ public class SkierServlet extends HttpServlet {
     public void init() throws ServletException {
         try {
             factory = new ConnectionFactory();
-            factory.setHost("52.10.48.69");
+            factory.setHost("35.93.162.180");
             factory.setUsername("assignment2");
             factory.setPassword("assignment2");
 
@@ -107,6 +107,7 @@ public class SkierServlet extends HttpServlet {
             response.getWriter().write("{\"message\": \"Lift ride recorded successfully for skier " + urlParts[7] + "\"}");
         } else {
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            System.out.println("❌ Failed to process request for skier: " + urlParts[7]);
             response.getWriter().write("{\"error\": \"Failed to process request\"}");
         }
     }
