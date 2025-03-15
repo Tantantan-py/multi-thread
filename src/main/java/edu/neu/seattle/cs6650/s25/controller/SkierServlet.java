@@ -104,7 +104,16 @@ public class SkierServlet extends HttpServlet {
         try {
             channel = channelPool.borrowObject();
             channel.queueDeclare(QUEUE_NAME, true, false, false, null);
+
+            // Enable publisher confirms
+            channel.confirmSelect();
+
+            // Publish the message
             channel.basicPublish("", QUEUE_NAME, null, message.getBytes(StandardCharsets.UTF_8));
+
+            // Wait for confirmation from RabbitMQ
+            channel.waitForConfirmsOrDie(5000); // Wait up to 5 seconds for confirmation
+
             return true;
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Error sending message to RabbitMQ", e);
@@ -119,6 +128,7 @@ public class SkierServlet extends HttpServlet {
             }
         }
     }
+
 
     private boolean validateUrl(String[] urlParts) {
         return urlParts.length == 8 &&
