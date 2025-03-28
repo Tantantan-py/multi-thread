@@ -30,7 +30,7 @@ public class SkierServlet extends HttpServlet {
     public void init() throws ServletException {
         try {
             factory = new ConnectionFactory();
-            factory.setHost("35.93.162.180");
+            factory.setHost("44.248.55.37");
             factory.setUsername("assignment2");
             factory.setPassword("assignment2");
 
@@ -47,7 +47,8 @@ public class SkierServlet extends HttpServlet {
             channel.queueDeclare(QUEUE_NAME, true, false, false, null);
             channel.close();
         } catch (IOException | TimeoutException e) {
-            throw new ServletException("Failed to initialize RabbitMQ connection and channel pool", e);
+//           Update rmq ip for debugging
+            throw new ServletException("Failed to initialize RabbitMQ connection and channel pool. current rmq ip is: 44.248.55.37:", e);
         }
     }
 
